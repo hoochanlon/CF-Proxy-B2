@@ -1,173 +1,114 @@
-# Cloudflare Worker for Backblaze B2
+# Cloudflare Worker proxy Backblaze B2
 
-Provide access to one or more private [Backblaze B2](https://www.backblaze.com/b2/cloud-storage.html) buckets via a [Cloudflare Worker](https://developers.cloudflare.com/workers/), so that objects in the bucket may only be publicly accessed via Cloudflare. The worker must be configured with a Backblaze application key with access to the buckets you wish to expose.
+> [!NOTE]
+>
+> 该项目基于 [backblaze-b2-samples/cloudflare-b2](https://github.com/backblaze-b2-samples/cloudflare-b2) 二创。
 
-Informal testing suggests that there is negligible performance overhead imposed by signing the request.
+## 功能及效果
 
-## Download the Source Code
+功能
 
-```shell
-git clone git@github.com:backblaze-b2-samples/cloudflare-b2.git
-cd cloudflare-b2
+- 代理 Backblaze B2 S3 兼容 API 请求
+- 自动为请求添加认证签名
+- 支持 GET 和 HEAD 请求方法
+- 支持桶名通过路径或主机名传递
+
+效果：私有桶链接实现公开化，并通过 cloudflare 代理 100% 省去流量
+
+![](https://cdn.jsdelivr.net/gh/hoochanlon/picx-images-hosting@master/uploads/2025/PixPin_2025-12-15_20-58-57.webp)
+
+
+
+## 安装
+
+1 克隆项目，安装依赖 
+
+```bash
+pnpm install
 ```
 
-You must also install dependencies before you can deploy or publish the worker:
+2 将配置模板复制到实际配置文件
 
-```shell
-npm install
+```bash
+cp wrangler.toml.template wrangler.toml
 ```
 
-## Worker Configuration
-
-Copy `wrangler.toml.template` to `wrangler.toml` and configure `B2_APPLICATION_KEY_ID`, `B2_ENDPOINT` and `BUCKET_NAME`. You may also configure `ALLOWED_HEADERS` to restrict the set of headers that will be signed and included in the upstream request to Backblaze B2, and `RCLONE_DOWNLOAD` to use the worker with rclone's `--b2-download-url` option.
+编辑 `wrangler.toml` 文件，配置以下参数
 
 ```toml
+name = "cloudflare-b2"
+workers_dev = true
+compatibility_date = "2023-09-04"
+
+main = "index.js"
+
 [vars]
 B2_APPLICATION_KEY_ID = "<your b2 application key id>"
-B2_ENDPOINT = "<your S3 endpoint - e.g. s3.us-west-001.backblazeb2.com >"
-# Set BUCKET_NAME to:
-#   "A Backblaze B2 bucket name" - direct all requests to the specified bucket
-#   "$path" - use the initial segment in the incoming URL path as the bucket name
-#           e.g. https://images.example.com/bucket-name/path/to/object.png
-#   "$host" - use the initial subdomain in the hostname as the bucket name
-#           e.g. https://bucket-name.images.example.com/path/to/object.png
-BUCKET_NAME = "$path"
-# Backblaze B2 buckets with public-read visibility do not allow anonymous clients
-# to list the bucket’s objects. You can allow or deny this functionality in the
-# Worker via ALLOW_LIST_BUCKET
-ALLOW_LIST_BUCKET = "<true, if you want to allow clients to list objects, otherwise false>"
-# If set, the worker will strip the `file/` prefix from incoming request paths.
-# See https://rclone.org/b2/#b2-download-url
-RCLONE_DOWNLOAD = "<true, if you are using the Worker to proxy downloads for rclone, otherwise false>"
-# If set, these headers will be included in the signed upstream request
-# alongside the minimal set of headers required for an AWS v4 signature:
-# "authorization", "x-amz-content-sha256" and "x-amz-date".
-#
-# Note that, if "x-amz-content-sha256" is not included in ALLOWED_HEADERS, then
-# any value supplied in the incoming request is discarded and
-# "x-amz-content-sha256" will be set to "UNSIGNED-PAYLOAD".
-#
-# If you set ALLOWED_HEADERS, it is your responsibility to ensure that the
-# list of headers that you specify supports the functionality that your client
-# apps use, for example, "range". The list below is a suggested starting point.
-#
-# Note that HTTP headers are not case-sensitive. "host" will match "host",
-# "Host" and "HOST".
-#ALLOWED_HEADERS = [
-#    "content-type",
-#    "date",
-#    "host",
-#    "if-match",
-#    "if-modified-since",
-#    "if-none-match",
-#    "if-unmodified-since",
-#    "range",
-#    "x-amz-content-sha256",
-#    "x-amz-date",
-#    "x-amz-server-side-encryption-customer-algorithm",
-#    "x-amz-server-side-encryption-customer-key",
-#    "x-amz-server-side-encryption-customer-key-md5"
-#]
+B2_ENDPOINT = "<your endpoint - e.g. s3.us-west-001.backblazeb2.com >"
+BUCKET_NAME = "<your bucket name, $path, or $host>"
+ALLOW_LIST_BUCKET = "<true or false>"
+RCLONE_DOWNLOAD = "<true or false>"
 ```
 
-You must also configure `B2_APPLICATION_KEY` as a [secret](https://blog.cloudflare.com/workers-secrets-environment/):
+
+## 从配置到发布
+
+1 配置本地开发环境
 
 ```bash
-echo "<your b2 application key>" | wrangler secret put B2_APPLICATION_KEY
+cp .dev.vars.template .dev.vars
 ```
 
-### Running in Wrangler's Local Server
-
-Wrangler's local server loads configuration from `wrangler.toml`, but cannot access secrets. Instead, the local server
-loads additional configuration from `.dev.vars`.
-
-Copy `.dev.vars.template` to `.dev.vars` and configure `B2_APPLICATION_KEY`:
-
-````toml
-# Configuration for running the app in local dev mode
-B2_APPLICATION_KEY = "<your b2 application key>"
-````
-
-### Passing the Bucket Name
-
-Set `BUCKET_NAME` to:
-
-* A Backblaze B2 bucket name, such as `my-bucket`, to direct all incoming requests to the specified bucket.
-* `$path` to use the initial segment in the incoming URL path as the bucket name, e.g. `https://my.domain.com/my-bucket/path/to/file.png`
-* `$host` to use the initial subdomain in the incoming URL hostname as the bucket name, e.g. `https://my-bucket.my.domain.com/path/to/file.png`
-
-If you are using the default `*.workers.dev` subdomain, you must either specify a bucket name in the configuration, or set `BUCKET_NAME` to `$path` and pass the bucket name in the path.
-
-Note that, if you use the `$host` configuration, you must configure a [Route](https://developers.cloudflare.com/workers/platform/triggers/routes) or a [Custom Domain](https://developers.cloudflare.com/workers/platform/triggers/custom-domains/) for each bucket name. You **cannot** simply route `*.my.domain.com/*` to your worker. 
-
-### Restricting Signed HTTP Headers in the Upstream Request
-
-By default, all HTTP headers in the downstream request from the client are signed and included in the upstream request to Backblaze B2, except the following:
-
-* Cloudflare headers with the prefix `cf-`, plus `x-forwarded-proto` and `x-real-ip`: these are set in the downstream request by Cloudflare, rather than by the client. In addition, `x-real-ip` is removed from the upstream request.
-* `accept-encoding`: No matter what the client passes, Cloudflare sets `accept-encoding` in the incoming request to `gzip, br` and then modifies the outgoing request, setting `accept-encoding` to `gzip`. This breaks the AWS v4 signature.
-* Conditional headers such as `if-match` and `if-modified-since` may be sent by the client but Cloudflare does not forward them in the upstream request if it does not have the resource in its cache, since Cloudflare needs the resource unconditionally.
-
-If you wish to further restrict the set of headers that will be signed and included, you can configure `ALLOWED_HEADERS` in `wrangler.toml`. If `ALLOWED_HEADERS` is set, then  the listed headers will be included in the signed upstream request alongside the minimal set of headers required for an AWS v4 signature: `authorization`, `x-amz-content-sha256` and `x-amz-date`.
-
-Note that, if `x-amz-content-sha256` is not included in `ALLOWED_HEADERS`, then any value supplied in the incoming request will be discarded and `x-amz-content-sha256` will be set to `UNSIGNED-PAYLOAD` in the outgoing request.
-
-If you do set `ALLOWED_HEADERS`, it is your responsibility to ensure that the list of headers that you specify supports the functionality that your client apps use, for example, `range` for [HTTP range requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Range_requests). The list below, the HTTP headers listed in the [AWS S3 GetObject documentation](https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html) currently supported by Backblaze B2, is a suggested starting point:
-
-```
-ALLOWED_HEADERS = [
-    "content-type",
-    "date",
-    "host",
-    "range",
-    "x-amz-content-sha256",
-    "x-amz-date",
-    "x-amz-server-side-encryption-customer-algorithm",
-    "x-amz-server-side-encryption-customer-key",
-    "x-amz-server-side-encryption-customer-key-md5"
-]
-```
-
-Note that HTTP headers are not case-sensitive. `host` will match `host`, `Host` and `HOST`.
-
-## Rclone Custom Endpoint for Downloads
-
-[Rclone's B2 integration](https://rclone.org/b2/) includes an option to specify a custom endpoint for downloads: [`--b2-download-url`](https://rclone.org/b2/#b2-download-url). Given such a custom endpoint, rather than reading files directly via the B2 Native API, Rclone reads them from that endpoint.
-
-If you wish to use the Rclone custom endpoint feature with this Worker, you must set the `RCLONE_DOWNLOAD` environment variable to `true` in `wrangler.toml` or the Cloudflare Dashboard:
+2 编辑 `.dev.vars` 文件，添加 B2 密钥：
 
 ```toml
-RCLONE_DOWNLOAD = "true"
+B2_APPLICATION_KEY = "<your b2 application key>"
 ```
 
-Rclone assumes that the Cloudflare endpoint is proxying the B2 Native API, which supports "friendly" download URLs of the form `https://f000.backblazeb2.com/file/bucket-name/path/to/file.txt`. So, given the custom endpoint `https://mysubdomain.mydomain.tld`, Rclone requests a URL such as `https://mysubdomain.mydomain.tld/file/bucket-name/path/to/file.txt`.
+3 运行 `cp .dev.vars.template .dev.vars` ，并填入密钥
 
-## Bucket Configuration
-
-Since the bucket is private, the Cloudflare Worker signs each request to Backblaze B2 using the application key, and includes the signature in the request’s `Authorization` HTTP header. By default, [Cloudflare does not cache content](https://developers.cloudflare.com/cache/concepts/cache-control/#conditions) where the request contains the `Authorization` header, so you must set your bucket’s info to include a cache-control directive.
-
-* Sign in to your Backblaze account.
-* In the left navigation menu under B2 Cloud Storage, click **Buckets**.
-* Locate your bucket in the list and click **Bucket Settings**.
-* Set **Bucket Info** to `{"Cache-Control":"public"}`. If you wish, you can set additional [cache-control directives](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Cache-Control#directives), for example, to direct Cloudflare to cache each file for a day, you would set **Bucket Info** to `{"Cache-Control": "public, max-age=86400"}`.
-* Click **Update Bucket**.
-
-## Wrangler
-
-You can use this repository as a template for your own worker using [`wrangler`](https://github.com/cloudflare/wrangler):
+4 登录 Cloudflare：`wrangler login`，构建并部署
 
 ```bash
-wrangler generate projectname https://github.com/backblaze-b2-samples/cloudflare-b2
+wrangler build
+wrangler deploy
 ```
 
-## Serverless
 
-To deploy using serverless add a [`serverless.yml`](https://serverless.com/framework/docs/providers/cloudflare/) file.
+## 注意事项
 
-## Range Requests
+- 不要将 `B2_APPLICATION_KEY` 直接存储在配置文件中，应使用 `wrangler secret put` 命令设置
+- 确保 B2 存储桶设置了适当的缓存控制头
+- 该 Worker 只支持 GET 和 HEAD 请求方法
+- 如果使用自定义域名，需要在 Cloudflare 控制台配置路由或自定义域
 
-When the worker forwards a range request for a large file (bigger than about 2 GB), Cloudflare may return the entire file, rather than the requested range. The worker includes logic adapted from [this Cloudflare Community reply](https://community.cloudflare.com/t/cloudflare-worker-fetch-ignores-byte-request-range-on-initial-request/395047/4) by [julian.cox](https://community.cloudflare.com/u/julian.cox) to abort and retry the request if the response to a range request does not contain the content-range header. 
+## 附录
 
-## Acknowledgements
+由于 Cloudflare 和 Backblaze 都属于 Bandwidth Alliance（带宽联盟），因此从 Cloudflare 回源到Backblaze B2（即“入口流量”）也是完全免费的。
 
-Based on [https://github.com/obezuk/worker-signed-s3-template](https://github.com/obezuk/worker-signed-s3-template)
+简单来说，这套方案的免费流量模式是：
+
+* 出口流量免费：Backblaze B2 → Cloudflare CDN
+* 入口流量免费：Cloudflare CDN → Backblaze B2
+
+
+```mermaid
+flowchart TD
+    User[“用户访问<br>img.yourdomain.com/xxx.jpg”]
+
+    subgraph Cloudflare [Cloudflare CDN]
+        direction LR
+        CF_Cache[边缘节点缓存]
+    end
+
+    subgraph Backblaze[Backblaze B2]
+        B2_Storage[“存储桶<br>（源站）”]
+    end
+
+    User --> Cloudflare
+
+    CF_Cache -- “❌ 缓存未命中<br>入口请求：免费（带宽联盟）” --> B2_Storage
+    B2_Storage -- “✅ 回源响应<br>出口流量：免费（带宽联盟）” --> CF_Cache
+
+    CF_Cache -- “✅ 缓存命中<br>无流量费用” --> User
+```

@@ -4,6 +4,7 @@
 // Adapted from https://github.com/obezuk/worker-signed-s3-template
 //
 import { AwsClient } from 'aws4fetch'
+import welcomeHtml from './welcome.html' assert { type: 'text' }
 
 const UNSIGNABLE_HEADERS = [
     // These headers appear in the request, but are never passed upstream
@@ -82,11 +83,19 @@ export default {
         // Remove trailing slashes
         path = path.replace(/\/$/, '');
 
-        // Reject list bucket requests unless configuration allows it
+        // Check if this is a root path request
         if (isListBucketRequest(env, path) && String(env['ALLOW_LIST_BUCKET']) !== "true") {
-            return new Response(null, {
-                status: 404,
-                statusText: "Not Found"
+            // Return a friendly welcome page instead of 404
+            // Replace template variables with actual values
+            const html = welcomeHtml
+                .replace('{{BUCKET_NAME}}', env['BUCKET_NAME'])
+                .replace('{{B2_ENDPOINT}}', env['B2_ENDPOINT']);
+            
+            return new Response(html, {
+                headers: {
+                    'Content-Type': 'text/html;charset=utf-8'
+                },
+                status: 200
             });
         }
 
@@ -95,18 +104,21 @@ export default {
         const rcloneDownload = String(env["RCLONE_DOWNLOAD"]) === 'true';
 
         // Set upstream target hostname.
+        // Extract the hostname from B2_ENDPOINT (remove protocol)
+        const b2Hostname = new URL(env['B2_ENDPOINT']).hostname;
+        
         switch (env['BUCKET_NAME']) {
             case "$path":
                 // Bucket name is initial segment of URL path
-                url.hostname = env['B2_ENDPOINT'];
+                url.hostname = b2Hostname;
                 break;
             case "$host":
                 // Bucket name is initial subdomain of the incoming hostname
-                url.hostname = url.hostname.split('.')[0] + '.' + env['B2_ENDPOINT'];
+                url.hostname = url.hostname.split('.')[0] + '.' + b2Hostname;
                 break;
             default:
                 // Bucket name is specified in the BUCKET_NAME variable
-                url.hostname = env['BUCKET_NAME'] + "." + env['B2_ENDPOINT'];
+                url.hostname = env['BUCKET_NAME'] + "." + b2Hostname;
                 break;
         }
 

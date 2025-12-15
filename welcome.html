@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cloudflare B2 Proxy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+        }
+        code {
+            background-color: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        .endpoint {
+            background-color: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Cloudflare B2 Proxy</h1>
+    <p>这是一个用于访问 Backblaze B2 存储桶的 Cloudflare Worker 代理服务。</p>
+    
+    <h2>如何使用</h2>
+    <p>要访问存储桶中的文件，请在 URL 后直接添加文件路径：</p>
+    <div class="endpoint">
+        <code>https://cloudflare-b2.hoochanlon.workers.dev/your-file-name</code>
+    </div>
+    
+    <h2>支持的操作</h2>
+    <ul>
+        <li>GET 请求：下载文件</li>
+        <li>HEAD 请求：获取文件元数据</li>
+    </ul>
+    
+    <h2>存储桶信息</h2>
+    <pre>
+存储桶名称: {{BUCKET_NAME}}
+B2 端点: {{B2_ENDPOINT}}
+    </pre>
+</body>
+</html>
