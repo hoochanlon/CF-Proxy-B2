@@ -7,6 +7,6 @@ main = "index.js"
 [vars]
 B2_APPLICATION_KEY_ID = "00556e277da357b0000000005"
 B2_ENDPOINT = "https://s3.us-east-005.backblazeb2.com"
-BUCKET_NAME = "canary-memos"
+BUCKET_NAME = "$path"
 ALLOW_LIST_BUCKET = "false"
 RCLONE_DOWNLOAD = "false"

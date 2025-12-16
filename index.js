@@ -107,18 +107,32 @@ export default {
         // Extract the hostname from B2_ENDPOINT (remove protocol)
         const b2Hostname = new URL(env['B2_ENDPOINT']).hostname;
         
+        let bucketName;
         switch (env['BUCKET_NAME']) {
             case "$path":
                 // Bucket name is initial segment of URL path
-                url.hostname = b2Hostname;
+                const pathSegments = path.split('/').filter(segment => segment.length > 0);
+                if (pathSegments.length === 0) {
+                    // Empty path, cannot determine bucket name
+                    return new Response("Bucket name required in path", { status: 400 });
+                }
+                bucketName = pathSegments[0];
+                // Remove bucket name from path, keep the rest as file path
+                const remainingPath = pathSegments.slice(1).join('/');
+                url.hostname = bucketName + "." + b2Hostname;
+                url.pathname = remainingPath ? '/' + remainingPath : '/';
                 break;
             case "$host":
                 // Bucket name is initial subdomain of the incoming hostname
-                url.hostname = url.hostname.split('.')[0] + '.' + b2Hostname;
+                bucketName = url.hostname.split('.')[0];
+                url.hostname = bucketName + '.' + b2Hostname;
+                url.pathname = '/' + path;
                 break;
             default:
                 // Bucket name is specified in the BUCKET_NAME variable
-                url.hostname = env['BUCKET_NAME'] + "." + b2Hostname;
+                bucketName = env['BUCKET_NAME'];
+                url.hostname = bucketName + "." + b2Hostname;
+                url.pathname = '/' + path;
                 break;
         }
 
@@ -140,10 +154,11 @@ export default {
         if (rcloneDownload) {
             if (env['BUCKET_NAME'] === "$path") {
                 // Remove leading file/ prefix from the path
-                url.pathname = path.replace(/^file\//, "");
+                // url.pathname already contains the path without bucket name
+                url.pathname = url.pathname.replace(/^\/file\//, "/");
             } else {
                 // Remove leading file/{bucket_name}/ prefix from the path 
-                url.pathname = path.replace(/^file\/[^/]+\//, "");
+                url.pathname = url.pathname.replace(/^\/file\/[^/]+\//, "/");
             }            
         }
 
