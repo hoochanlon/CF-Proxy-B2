@@ -18,7 +18,6 @@
 ![](https://cdn.jsdelivr.net/gh/hoochanlon/picx-images-hosting@master/uploads/2025/PixPin_2025-12-15_20-58-57.webp)
 
 
-
 ## 一、克隆项目安装依赖，并配置模版文件
 
 1 克隆项目，安装依赖 
@@ -70,6 +69,16 @@ B2_APPLICATION_KEY = "<your b2 application key>"
 wrangler build
 wrangler deploy
 ```
+
+## 三、配置 B2 桶信息
+
+当服务器返回这个响应头时，它在告诉所有接收到该资源的缓存系统：这个资源可以被任何人（public）缓存起来，并且在接下来的 24 小时（max-age=86400）内，它都是有效的、新鲜的。在这 24 小时内，请直接使用缓存的版本，不必来问服务器。
+
+```
+{"cache-control":"public, max-age=86400"}
+```
+
+一二步做完后，将如上代码复制到桶信息，至此所有配置工作已全部完成，并以部署的 worker 完成测验，测试效果如“功能及效果”标题内容所示。
 
 
 ## 注意事项

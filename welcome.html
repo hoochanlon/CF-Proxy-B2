@@ -141,6 +141,11 @@ RCLONE_DOWNLOAD = "&lt;true or false&gt;"
         </li>
     </ol>
 
+    <h2>三、配置 B2 桶信息</h2>
+    <p>在存储桶的元数据里添加缓存控制头，允许公共缓存 24 小时，减少回源压力：</p>
+    <pre><code>{"cache-control":"public, max-age=86400"}</code></pre>
+    <p>完成后，桶的响应会提示缓存系统在 24 小时内直接使用缓存版本，无需重复询问源站。</p>
+
     <h2>注意事项</h2>
     <ul>
         <li>不要将 <code>B2_APPLICATION_KEY</code> 直接存储在配置文件中，应使用 <code>wrangler secret put</code> 命令设置</li>
