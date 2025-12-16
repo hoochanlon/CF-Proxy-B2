@@ -1,63 +1,188 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Cloudflare B2 Proxy</title>
+    <meta charset="utf-8" />
+    <title>Cloudflare Worker proxy Backblaze B2</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
-            padding: 40px 20px;
-            line-height: 1.6;
+            padding: 40px 20px 80px;
+            line-height: 1.7;
+            color: #222;
         }
         h1 {
-            color: #333;
+            color: #111;
             border-bottom: 2px solid #f0f0f0;
             padding-bottom: 10px;
         }
         h2 {
+            color: #444;
+            margin-top: 32px;
+        }
+        h3 {
             color: #555;
+            margin-top: 20px;
+        }
+        a {
+            color: #0b6cff;
         }
         code {
-            background-color: #f4f4f4;
+            background-color: #f6f8fa;
             padding: 2px 6px;
-            border-radius: 3px;
-            font-family: monospace;
+            border-radius: 4px;
+            font-family: Consolas, Monaco, monospace;
         }
         pre {
-            background-color: #f4f4f4;
-            padding: 15px;
-            border-radius: 5px;
+            background-color: #f6f8fa;
+            padding: 14px 16px;
+            border-radius: 6px;
             overflow-x: auto;
+            border: 1px solid #e5e7eb;
         }
-        .endpoint {
-            background-color: #e8f4f8;
-            padding: 15px;
-            border-radius: 5px;
-            margin: 20px 0;
+        ul, ol {
+            padding-left: 20px;
+        }
+        .note {
+            background: #f0f6ff;
+            border: 1px solid #c9dfff;
+            padding: 12px 14px;
+            border-radius: 6px;
+            margin: 16px 0;
+        }
+        .img-box {
+            margin: 18px 0;
+            text-align: center;
+        }
+        .img-box img {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.06);
+        }
+        .mermaid-box {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0 32px;
+        }
+        .mermaid {
+            max-width: 860px;
+            width: 100%;
         }
     </style>
 </head>
 <body>
-    <h1>Cloudflare B2 Proxy</h1>
-    <p>这是一个用于访问 Backblaze B2 存储桶的 Cloudflare Worker 代理服务。</p>
-    
-    <h2>如何使用</h2>
-    <p>要访问存储桶中的文件，请在 URL 后直接添加文件路径：</p>
-    <div class="endpoint">
-        <code>https://cloudflare-b2.hoochanlon.workers.dev/your-file-name</code>
+    <h1>Cloudflare Worker proxy Backblaze B2</h1>
+
+    <div class="note">
+        <strong>NOTE</strong>：该项目基于
+        <a href="https://github.com/backblaze-b2-samples/cloudflare-b2" target="_blank" rel="noreferrer">
+            backblaze-b2-samples/cloudflare-b2
+        </a>
+        二创。
     </div>
-    
-    <h2>支持的操作</h2>
+
+    <h2>功能及效果</h2>
+    <h3>功能</h3>
     <ul>
-        <li>GET 请求：下载文件</li>
-        <li>HEAD 请求：获取文件元数据</li>
+        <li>代理 Backblaze B2 S3 兼容 API 请求</li>
+        <li>自动为请求添加认证签名</li>
+        <li>支持 GET 和 HEAD 请求方法</li>
+        <li>支持桶名通过路径或主机名传递</li>
     </ul>
-    
-    <h2>存储桶信息</h2>
-    <pre>
-存储桶名称: {{BUCKET_NAME}}
-B2 端点: {{B2_ENDPOINT}}
-    </pre>
+
+    <h3>效果</h3>
+    <p>私有桶链接实现公开化，并通过 Cloudflare 代理 100% 省去流量。</p>
+    <div class="img-box">
+        <img src="https://cdn.jsdelivr.net/gh/hoochanlon/picx-images-hosting@master/uploads/2025/PixPin_2025-12-15_20-58-57.webp" alt="效果示意" />
+    </div>
+
+    <h2>一、克隆项目安装依赖，并配置模版文件</h2>
+    <ol>
+        <li>
+            克隆项目，安装依赖
+            <pre><code>pnpm install</code></pre>
+        </li>
+        <li>
+            将配置模板复制到实际配置文件
+            <pre><code>cp wrangler.toml.template wrangler.toml</code></pre>
+        </li>
+        <li>编辑 <code>wrangler.toml</code> 文件，配置以下参数</li>
+    </ol>
+    <pre><code>
+name = "cloudflare-b2"
+workers_dev = true
+compatibility_date = "2023-09-04"
+
+main = "index.js"
+
+[vars]
+B2_APPLICATION_KEY_ID = "&lt;your b2 application key id&gt;"
+B2_ENDPOINT = "&lt;your endpoint - e.g. s3.us-west-001.backblazeb2.com &gt;"
+BUCKET_NAME = "&lt;your bucket name, $path, or $host&gt;"
+ALLOW_LIST_BUCKET = "&lt;true or false&gt;"
+RCLONE_DOWNLOAD = "&lt;true or false&gt;"
+
+</code></pre>
+
+    <h2>二、配置KEY，并发布</h2>
+    <ol>
+        <li>
+            复制 .dev.vars.template 文件为 .dev.vars 文件
+            <pre><code>cp .dev.vars.template .dev.vars</code></pre>
+        </li>
+        <li>
+            编辑 <code>.dev.vars</code> 文件，添加 B2 密钥：
+            <pre><code>B2_APPLICATION_KEY = "&lt;your b2 application key&gt;"</code></pre>
+        </li>
+        <li>运行 <code>cp .dev.vars.template .dev.vars</code>，并填入密钥</li>
+        <li>登录 Cloudflare，构建并部署
+            <pre><code>wrangler build && wrangler deploy</code></pre>
+        </li>
+    </ol>
+
+    <h2>注意事项</h2>
+    <ul>
+        <li>不要将 <code>B2_APPLICATION_KEY</code> 直接存储在配置文件中，应使用 <code>wrangler secret put</code> 命令设置</li>
+        <li>确保 B2 存储桶设置了适当的缓存控制头</li>
+        <li>该 Worker 只支持 GET 和 HEAD 请求方法</li>
+        <li>如果使用自定义域名，需要在 Cloudflare 控制台配置路由或自定义域</li>
+    </ul>
+
+    <h2>附录</h2>
+    <p>由于 Cloudflare 和 Backblaze 都属于 Bandwidth Alliance（带宽联盟），因此从 Cloudflare 回源到 Backblaze B2（即“入口流量”）也是完全免费的。</p>
+    <p>简单来说，这套方案的免费流量模式是：</p>
+    <ul>
+        <li>出口流量免费：Backblaze B2 → Cloudflare CDN</li>
+        <li>入口流量免费：Cloudflare CDN → Backblaze B2</li>
+    </ul>
+
+    <div class="mermaid-box">
+    <div class="mermaid">
+flowchart TD
+    User["用户访问<br>img.yourdomain.com/xxx.jpg"]
+
+    subgraph Cloudflare [Cloudflare CDN]
+        direction LR
+        CF_Cache[边缘节点缓存]
+    end
+
+    subgraph Backblaze[Backblaze B2]
+        B2_Storage["存储桶<br>（源站）"]
+    end
+
+    User --> Cloudflare
+
+    CF_Cache -- "❌ 缓存未命中<br>入口请求：免费（带宽联盟）" --> B2_Storage
+    B2_Storage -- "✅ 回源响应<br>出口流量：免费（带宽联盟）" --> CF_Cache
+
+    CF_Cache -- "✅ 缓存命中<br>无流量费用" --> User
+    </div>
+    </div>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
 </body>
 </html>

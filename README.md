@@ -19,7 +19,7 @@
 
 
 
-## 安装
+## 一、克隆项目安装依赖，并配置模版文件
 
 1 克隆项目，安装依赖 
 
@@ -51,23 +51,20 @@ RCLONE_DOWNLOAD = "<true or false>"
 ```
 
 
-## 从配置到发布
+## 二、配置 key 并发布
 
-1 配置本地开发环境
+
+1 编辑 `.dev.vars` 文件，添加 B2 密钥：
 
 ```bash
 cp .dev.vars.template .dev.vars
-```
-
-2 编辑 `.dev.vars` 文件，添加 B2 密钥：
-
-```toml
+vi .dev.vars
 B2_APPLICATION_KEY = "<your b2 application key>"
 ```
 
-3 运行 `cp .dev.vars.template .dev.vars` ，并填入密钥
+2 运行 `cp .dev.vars.template .dev.vars` ，并填入密钥
 
-4 登录 Cloudflare：`wrangler login`，构建并部署
+3 登录 Cloudflare：`wrangler login`，构建并部署
 
 ```bash
 wrangler build
