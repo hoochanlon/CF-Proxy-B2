@@ -15,7 +15,7 @@
 
 效果：私有桶链接实现公开化，并通过 cloudflare 代理 100% 省去流量
 
-![](https://cdn.jsdelivr.net/gh/hoochanlon/picx-images-hosting@master/uploads/2025/PixPin_2025-12-15_20-58-57.webp)
+![](https://cdn.jsdelivr.net/gh/hoochanlon/picx-images-hosting@master/imgs/uploads/2025/PixPin_2025-12-15_20-58-57.webp)
 
 
 ## 一、克隆项目安装依赖，并配置模版文件
